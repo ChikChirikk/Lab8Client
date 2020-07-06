@@ -1,0 +1,126 @@
+package Connection;
+
+
+import Controller.CommandWithObject;
+import Controller.Commands;
+import Utilites.Serializator;
+
+import java.io.IOException;
+import java.net.InetSocketAddress;
+import java.nio.ByteBuffer;
+import java.nio.channels.DatagramChannel;
+import java.util.ArrayList;
+import java.util.HashMap;
+
+public class ClientSender {
+    private boolean isCommandWithObject;
+    private Serializator serializator = new Serializator();
+    private DatagramChannel channel;
+    private static InetSocketAddress serverAdress;
+    private ByteBuffer buffer = ByteBuffer.allocate(1000000);
+    private int clientPort;
+    private static int serverPort;
+    private HashMap portLoginAndPassword;
+
+    public ClientSender(String host, int serverPort, int clientPort) throws IOException {
+        this.serverPort = serverPort;
+        this.channel = DatagramChannel.open();
+        this.serverAdress = new InetSocketAddress(host, serverPort);
+        channel.configureBlocking(false);
+        this.clientPort = clientPort;
+
+    }
+
+    public boolean isValidConnection() {
+        try {
+            channel.connect(serverAdress);
+            return true;
+        } catch (IOException e) {
+            return false;
+        }
+//        try {
+//            this.send("-1");
+//            throw null;
+//        } catch (NullPointerException e) {
+//            e.printStackTrace();
+//            return true;
+//        } catch (IOException e) {
+//            e.printStackTrace();
+//            return false;
+//        }
+    }
+
+    public static InetSocketAddress getServerAdress() {
+        return serverAdress;
+    }
+
+    public static int getServerPort() {
+        return serverPort;
+    }
+
+    public void setPortLoginAndPassword(HashMap portLoginAndPassword) {
+        this.portLoginAndPassword = portLoginAndPassword;
+    }
+
+    public boolean isCommandWithObject() {
+        return isCommandWithObject;
+    }
+
+    public void sendPortLoginPassword() throws IOException {
+        buffer.clear();
+        buffer.put(serializator.toSerialize(portLoginAndPassword));
+        buffer.flip();
+        channel.send(buffer, serverAdress);
+        buffer.flip();
+    }
+
+    public void send(String text) throws IOException {
+        //System.out.println("send text "+text);
+        buffer.clear();
+        buffer.put(text.getBytes());
+        buffer.flip();
+        channel.send(buffer, serverAdress);
+        buffer.flip();
+    }
+
+    public void send(Object object) throws IOException {
+        //System.out.println("send object "+object);
+        buffer.clear();
+        byte[] serializedObject = serializator.toSerialize(object);
+        buffer.put(serializedObject);
+        buffer.flip();
+        channel.send(buffer, serverAdress);
+        buffer.flip();
+    }
+
+    public void sendCommand(Commands command) throws IOException {
+        ArrayList commandAndArgument = this.toPackCommand(command);
+        this.sendPortLoginPassword();
+        buffer.clear();
+        //thisCommand += invoker.getCommand().getName()+" "+ invoker.getArg() +"\n";
+        buffer.put(serializator.toSerialize(commandAndArgument));
+        buffer.flip();
+        channel.send(buffer, serverAdress);
+        buffer.flip();
+        if (command.getCommand().getName().equals("exit"))
+            command.getCommand().execute(null);
+        try {
+            CommandWithObject commandWithObject = (CommandWithObject) command.getCommand();
+            isCommandWithObject = true;
+        } catch (Exception e) {
+            isCommandWithObject = false;
+        }
+    }
+
+    public int getClientPort() {
+        return clientPort;
+    }
+
+    public ArrayList toPackCommand(Commands command) {
+        ArrayList commandAndArgument = new ArrayList();
+        commandAndArgument.add(command.getCommand());
+        commandAndArgument.add(command.getArg());
+        return commandAndArgument;
+    }
+}
+
